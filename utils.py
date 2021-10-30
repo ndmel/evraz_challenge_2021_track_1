@@ -235,7 +235,7 @@ def _feature_stats_lom(df, lom_df):
 
 def _feature_last_temp_gas(df, gas_df):
     """
-    Фичи газа - последние показатели, средние показатели,суммарные показатели (до продувки)
+    Фичи газа - последние показатели, средние показатели, суммарные показатели (до конца продувки)
     """
     return df.merge(
         gas_df.groupby('NPLV').tail(1)[['NPLV', 'T', 'T_rel', 'V', 'O2', 'N2', 'H2', 'CO2', 'CO', 'AR']] \
@@ -247,6 +247,10 @@ def _feature_last_temp_gas(df, gas_df):
         on=['NPLV'], how='left', validate='1:1').merge(
         gas_df.groupby('NPLV')[['V', ]].sum() \
             .add_suffix('_sum_gas').reset_index(),
+        on=['NPLV'], how='left', validate='1:1').merge(
+        gas_df[gas_df['Time'] >= gas_df['VR_NACH']]\
+            .groupby(['NPLV'])[['O2_V', 'N2_V', 'H2_V', 'CO2_V', 'CO_V', 'AR_V']].sum()\
+            .add_suffix('_SUM_PRODUVKA').reset_index(),
         on=['NPLV'], how='left', validate='1:1')
 
 
@@ -405,6 +409,10 @@ def prepare_features(df, produv_df, lom_df, plavki_df, sip_df, chugun_df, gas_df
         df['VES_CHUGUN_SUM_SIP_LOM'] = df['VES'] + df['VDSYP_SUM'] + df['VDL_SUM']
     if 'T_CHUGUN_REL_GAS' in used_features:
         df = _feature_gas_temp_additional(df, gas_df, chugun_df, chronom_df, produv_df)
+    if 'MAIN_FURMA' in used_features:
+        df['MAIN_FURMA'] = (df['T фурмы 1_mean_gas'] > df['T фурмы 2_mean_gas']).astype('int')
+        same_furma_indx = df[df['T фурмы 1_mean_gas'] == df['T фурмы 2_mean_gas']].index
+        df.loc[same_furma_indx, 'MAIN_FURMA'] = -1
         
 
         
