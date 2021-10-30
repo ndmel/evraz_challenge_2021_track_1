@@ -19,3 +19,6 @@
 * sklearn=0.22.2.post1
 * catboost=0.23.2
 * seaborn=0.11.1
+
+**Презентация**
+https://docs.google.com/presentation/d/1R4TSoHoItArtx7Zn833fX7hrt_crK2LNZU_BwXagXGA/edit?usp=sharing
