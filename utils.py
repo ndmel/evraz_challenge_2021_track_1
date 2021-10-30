@@ -356,4 +356,15 @@ def prepare_features(df, produv_df, lom_df, plavki_df, sip_df, chugun_df, gas_df
         df = _feature_produv_time(df, produv_df)
     if '0_CHRONO_NOP' in used_features:
         df = _feature_operations_chronom(df, chronom_df)
+    if 'VES_CHUGUN_REL_LOM' in used_features:
+        df['VES_CHUGUN_REL_LOM'] = df['VES'] / df['VDL_SUM']
+    if 'VES_CHUGUN_SUM_LOM' in used_features:
+        df['VES_CHUGUN_SUM_LOM'] = df['VES'] + df['VDL_SUM']
+    if 'VES_CHUGUN_REL_SIP' in used_features:
+        df['VES_CHUGUN_REL_SIP'] = df['VES'] / df['VDSYP_SUM']
+    if 'VES_CHUGUN_SUM_SIP' in used_features:
+        df['VES_CHUGUN_SUM_SIP'] = df['VES'] + df['VDSYP_SUM']
+    if 'VES_CHUGUN_SUM_SIP_LOM' in used_features:
+        df['VES_CHUGUN_SUM_SIP_LOM'] = df['VES'] + df['VDSYP_SUM'] + df['VDL_SUM']
+
     return df
