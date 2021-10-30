@@ -226,6 +226,9 @@ def _feature_stats_lom(df, lom_df):
     for lom_col in ['VDL_4', 'VDL_8', 'VDL_13', 'VDL_23', 'VDL_61', 'VDL_20', 'VDL_48', 'VDL_49', 'VDL_63', 'VDL_3']:
         if lom_col not in lom_df_pivot.columns:
             lom_df_pivot[lom_col] = None
+            lom_df_pivot[lom_col + '_REL'] = None
+        else:
+            lom_df_pivot[lom_col + '_REL'] = lom_df_pivot[lom_col]  /  lom_df_pivot['VDL_SUM']
 
     return df.merge(lom_df_pivot.fillna(0), on=['NPLV'], how='left', validate='1:1')
 
@@ -247,6 +250,38 @@ def _feature_last_temp_gas(df, gas_df):
         on=['NPLV'], how='left', validate='1:1')
 
 
+def _feature_gas_temp_additional(df, gas_df, chugun_df, chronom_df, produv_df):
+    """
+    Относительная температура газа к температуре чугуна во время замера 
+    Как изменилась температура газа с момента замера чугуна
+    """
+    
+    # Температура чугуна к газу во время замера чугуна
+    chugun_df_with_gas = chugun_df.assign(DATA_ZAMERA_MIN = chugun_df.DATA_ZAMERA.dt.round('min')).merge(
+        gas_df.assign(DATA_ZAMERA_MIN = gas_df.Time.dt.round('min'))\
+            [['NPLV', 'DATA_ZAMERA_MIN', 'T']].rename(columns = {'T':'T_GAS_ZAMER'}),
+        on = ['NPLV', 'DATA_ZAMERA_MIN'], how = 'left'
+    ).groupby(['NPLV', 'DATA_ZAMERA_MIN', 'T'], as_index = False)[['T_GAS_ZAMER']].mean()
+    chugun_df_with_gas['T_CHUGUN_REL_GAS'] = chugun_df_with_gas['T'] / chugun_df_with_gas['T_GAS_ZAMER']
+    df = df.merge(chugun_df_with_gas[['NPLV', 'T_GAS_ZAMER', 'T_CHUGUN_REL_GAS']], on=['NPLV'], how='left', validate='1:1')
+    
+    # Как изменилась температура газа с момента замера чугуна
+    nplv_start_with_temp_gas_df = chronom_df.assign(VR_NACH_MIN = chronom_df.VR_NACH.dt.round('min'))\
+            [chronom_df.NOP == 'Продувка'].merge(
+        gas_df.assign(VR_NACH_MIN = gas_df.Time.dt.round('min'))\
+            [['NPLV', 'VR_NACH_MIN', 'T']].rename(columns = {'T':'T_GAS_ZAMER_NACH_PRODUV'}),
+        on = ['NPLV', 'VR_NACH_MIN'], how = 'left'
+    ).groupby(['NPLV', 'VR_NACH_MIN'], as_index = False)[['T_GAS_ZAMER_NACH_PRODUV']].mean()
+    nplv_start_with_temp_gas_df= nplv_start_with_temp_gas_df.merge(
+        chugun_df_with_gas[['NPLV', 'T_GAS_ZAMER']], on = ['NPLV'], how = 'left', validate = '1:1'
+    )
+    nplv_start_with_temp_gas_df['T_GAS_DELTA_SINCE_ZAMER'] = nplv_start_with_temp_gas_df['T_GAS_ZAMER'] \
+        - nplv_start_with_temp_gas_df['T_GAS_ZAMER_NACH_PRODUV']
+    df = df.merge(nplv_start_with_temp_gas_df[['NPLV', 'T_GAS_DELTA_SINCE_ZAMER']], on=['NPLV'], how='left', validate='1:1')
+
+    return df
+
+
 def _feature_stats_sip(df, sip_df):
     """
     Общие фичи по добавлению материалов в смесь: сколько добавили конкретного материала
@@ -262,6 +297,9 @@ def _feature_stats_sip(df, sip_df):
                 'VDSYP_442']:
         if col not in sip_df_pivot.columns:
             sip_df_pivot[col] = None
+            sip_df_pivot[col + '_REL'] = None
+        else:
+            sip_df_pivot[col + '_REL'] = sip_df_pivot[col]  /  sip_df_pivot['VDSYP_SUM']
 
     return df.merge(sip_df_pivot.fillna(0), on=['NPLV'], how='left', validate='1:1')
 
@@ -314,7 +352,6 @@ def min_to_sec(df):
         df_vals.extend(group.interpolate().values)
     return pd.DataFrame(df_vals, columns=df.columns)
 
-
 def prepare_features(df, produv_df, lom_df, plavki_df, sip_df, chugun_df, gas_df, chronom_df, used_features):
     """
     Общая функция для сбора фичей для датасета
@@ -366,5 +403,9 @@ def prepare_features(df, produv_df, lom_df, plavki_df, sip_df, chugun_df, gas_df
         df['VES_CHUGUN_SUM_SIP'] = df['VES'] + df['VDSYP_SUM']
     if 'VES_CHUGUN_SUM_SIP_LOM' in used_features:
         df['VES_CHUGUN_SUM_SIP_LOM'] = df['VES'] + df['VDSYP_SUM'] + df['VDL_SUM']
+    if 'T_CHUGUN_REL_GAS' in used_features:
+        df = _feature_gas_temp_additional(df, gas_df, chugun_df, chronom_df, produv_df)
+        
 
+        
     return df
